@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-Way Point navigtion
-
-(c) S. Bertrand
-"""
-
+# ========================================================================== #
+#                   IMPORTATION DES LIBRAIRES
+# ========================================================================== #
 import math
 import Robot as rob
 import numpy as np
@@ -13,17 +9,18 @@ import matplotlib.animation as animation
 import Timer as tmr
 import Potential
 
+# ========================================================================== #
+#                   VARIABLES DE BASES
+# ========================================================================== #
 # robot
 x0 = -40.0
 y0 = -40.0
-theta0 = 0.00001
+theta0 = 0.0
 robot = rob.Robot(x0, y0, theta0)
 
-
 # potential
-difficulty = 3
+difficulty = 1
 pot = Potential.Potential(difficulty=difficulty, random=True)
-
 
 # position control loop: gain and timer
 kpPos = 1
@@ -35,20 +32,11 @@ kpOrient = 10
 orientationCtrlPeriod = 0.05#0.01
 timerOrientationCtrl = tmr.Timer(orientationCtrlPeriod)
 
-
-# list of way points: list of [x coord, y coord]
-WPlist = [[pot.mu1[0],pot.mu1[1]]]
-#threshold for change to next WP
-epsilonWP = 1
-# init WPManager
-WPManager = rob.WPManager(WPlist, epsilonWP)
-
 # duration of scenario and time step for numerical integration
 t0 = 0.0
 tf = 500.0
 dt = 0.01
 simu = rob.RobotSimulation(robot, t0, tf, dt)
-
 
 # initialize control inputs
 Vr = 0.0
@@ -57,25 +45,28 @@ omegar = 0.0
 
 firstIter = True
 
+
+# ========================================================================== #
+#                   FONCTIONS
+# ========================================================================== #
 def move(dist, angle):
     newAngle = robot.theta + angle
     
-    newX = dist * np.cos(newAngle)
-    newY = dist * np.sin(newAngle)
+    newX = dist * np.cos(newAngle) + robot.x
+    newY = dist * np.sin(newAngle) + robot.y
     
-    return [robot.x + newX, robot.y + newY]
+    return [newX, newY]
 
-def new_cluster(point):
-    clusters.append({"center":[0.0,0.0]})
-    [clusters[-1]["center"][0],clusters[-1]["center"][1]] = point
-
+# ========================================================================== #
+#                   INITIALISATION DES VARIABLES
+# ========================================================================== #
 potentialValues = [0.0]
 STATE = "INIT"
 outside_points = []
 all_points = [[],[]]
 potential_points = []
 prediction_point = []
-seuil = 125.0
+seuil = 200.0
 epsilonSeuil = 0.2
 epsilonStartSeuil = 4
 fullLoopDetectDistance = 5
@@ -84,6 +75,9 @@ maxValue = 0.0
 maxPoint = []
 maxCounter = 0
 
+# ========================================================================== #
+#                   BOUCLE DE SIMULATION
+# ========================================================================== #
 # loop on simulation time
 for t in simu.t: 
 
@@ -92,12 +86,10 @@ for t in simu.t:
 
         potentialValue = pot.value([robot.x, robot.y])
         potentialValues.append(potentialValue)
-        
-        if(STATE == "INIT"):
-            all_points[0].append([robot.x,robot.y])
-        else:
-            all_points[1].append([robot.x,robot.y])
-        # algo
+
+# ========================================================================== #
+#                   AUTOMATE
+# ========================================================================== #
         if (STATE == "INIT"):
             if(abs(seuil - potentialValue) < epsilonStartSeuil):
                 STATE = "FOLLOWER"
@@ -137,8 +129,13 @@ for t in simu.t:
                 a1 = np.sin(theta1+np.pi/2)/np.cos(theta1+np.pi/2)
                 a2 = np.sin(theta2+np.pi/2)/np.cos(theta2+np.pi/2)
                 
-                b1 = outside_points[i][1] - a1 * outside_points[i][0]
-                b2 = outside_points[i+1][1] - a2 * outside_points[i+1][0]
+                center1X = (outside_points[i][0] + outside_points[i+1][0]) / 2 
+                center1Y = (outside_points[i][1] + outside_points[i+1][1]) / 2 
+                center2X = (outside_points[i+1][0] + outside_points[i+2][0]) / 2 
+                center2Y = (outside_points[i+1][1] + outside_points[i+2][1]) / 2 
+                
+                b1 = center1Y - a1 * center1X
+                b2 = center2Y - a2 * center2X
                 
                 x = (b2 - b1) / (a1 - a2)
                 y = a1 * x + b1
@@ -217,6 +214,9 @@ for t in simu.t:
                 print("Valeur du potentiel maximum :",pot.value([pot.mu1[0],pot.mu1[1]]))
                 STATE = "END"
 
+# ========================================================================== #
+#                   COMMAANDE DU ROBOT
+# ========================================================================== #
         # velocity control input
         Vr = kpPos * np.sqrt((aim[0] - robot.x)**2 + (aim[1] - robot.y)**2)
         
@@ -249,17 +249,15 @@ for t in simu.t:
     
 # end of loop on simulation time
 
-
+# ========================================================================== #
+#                   AFFICHAGE
+# ========================================================================== #
 # close all figures
 plt.close("all")
 
 # generate plots
 fig,ax = simu.plotXY(1,-50,50,-50,50)
 pot.plot(noFigure=None, fig=fig, ax=ax)  # plot potential for verification of solution
-#for all_point in all_points[0]:
-#    plt.plot(all_point[0], all_point[1], 'go--', linewidth=2, markersize=2)
-#for all_point in all_points[1]:
-#    plt.plot(all_point[0], all_point[1], 'wo--', linewidth=2, markersize=2)
 for point in outside_points:
     plt.plot(point[0], point[1], 'bo--', linewidth=2, markersize=2)
 for point in potential_points:
