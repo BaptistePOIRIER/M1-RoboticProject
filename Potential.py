@@ -24,11 +24,11 @@ class Potential:
         self.difficulty = difficulty
         self.random = random
         
-        self.xmin = -25.
-        self.xmax = 25.
+        self.xmin = -50.
+        self.xmax = 50.
         self.xstep = 0.05
-        self.ymin = -25.
-        self.ymax = 25.
+        self.ymin = -50.
+        self.ymax = 50.
         self.ystep = 0.05
         
         
