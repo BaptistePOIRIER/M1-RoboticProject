@@ -1,3 +1,10 @@
+"""
+Projet Introduction à la robotique
+FORDANT - GOUDIN - POIRIER
+
+Méthode des Missions Inversées
+"""
+
 # ========================================================================== #
 #                   IMPORTATION DES LIBRAIRES
 # ========================================================================== #
@@ -45,7 +52,6 @@ omegar = 0.0
 
 firstIter = True
 
-
 # ========================================================================== #
 #                   FONCTIONS
 # ========================================================================== #
@@ -85,7 +91,6 @@ epsilonSeuil = 0.2
 epsilonStartSeuil = 4
 fullLoopDetectDistance = 5
 distanceBetweenPoints = 1
-
 
 # ========================================================================== #
 #                   BOUCLE DE SIMULATION
@@ -301,29 +306,24 @@ for t in simu.t:
                 print("Valeur du potentiel final : ",potentialValue)
                 print("Valeur du potentiel maximum :",pot.value([pot.mu1[0],pot.mu1[1]]))
                 print("Erreur relative :",(pot.value([pot.mu1[0],pot.mu1[1]])-potentialValue)/pot.value([pot.mu1[0],pot.mu1[1]])*100,"%")
-                STATE = "END"
+                STATE = "Fini"
 
 # ========================================================================== #
 #                   COMMAANDE DU ROBOT
 # ========================================================================== #
         # velocity control input
         Vr = kpPos * np.sqrt((aim[0] - robot.x)**2 + (aim[1] - robot.y)**2)
-        
-        
+         
         # reference orientation
         thetar = np.arctan2(aim[1] - robot.y,aim[0] - robot.x)
         
-        
         if math.fabs(robot.theta-thetar)>math.pi:
             thetar = thetar + math.copysign(2*math.pi,robot.theta)        
-        
-        
         
     # orientation control loop
     if timerOrientationCtrl.isEllapsed(t):
         # angular velocity control input        
         omegar = kpOrient * (thetar - robot.theta)
-    
     
     # assign control inputs to robot
     robot.setV(Vr)

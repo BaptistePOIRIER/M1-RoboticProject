@@ -1,10 +1,13 @@
-# -*- coding: utf-8 -*-
 """
-Way Point navigtion
+Projet Introduction à la robotique
+FORDANT - GOUDIN - POIRIER
 
-(c) S. Bertrand
+Méthode des tangentes
 """
 
+# ========================================================================== #
+#                   IMPORTATION DES LIBRAIRES
+# ========================================================================== #
 import math
 import Robot as rob
 import numpy as np
@@ -13,16 +16,18 @@ import matplotlib.animation as animation
 import Timer as tmr
 import Potential
 
+# ========================================================================== #
+#                   VARIABLES DE BASES
+# ========================================================================== #
 # robot
 x0 = -20.0
 y0 = -20.0
 theta0 = 0.00001
 robot = rob.Robot(x0, y0, theta0)
 
-
 # potential
-pot = Potential.Potential(difficulty=1, random=True)
-
+difficulty=1
+pot = Potential.Potential(difficulty=difficulty, random=True)
 
 # position control loop: gain and timer
 kpPos = 1
@@ -34,20 +39,11 @@ kpOrient = 10
 orientationCtrlPeriod = 0.05#0.01
 timerOrientationCtrl = tmr.Timer(orientationCtrlPeriod)
 
-
-# list of way points: list of [x coord, y coord]
-WPlist = [[pot.mu1[0],pot.mu1[1]]]
-#threshold for change to next WP
-epsilonWP = 1
-# init WPManager
-WPManager = rob.WPManager(WPlist, epsilonWP)
-
 # duration of scenario and time step for numerical integration
 t0 = 0.0
 tf = 50.0
 dt = 0.01
 simu = rob.RobotSimulation(robot, t0, tf, dt)
-
 
 # initialize control inputs
 Vr = 0.0
@@ -56,35 +52,75 @@ omegar = 0.0
 
 firstIter = True
 
+# ========================================================================== #
+#                   FONCTIONS
+# ========================================================================== #
+"""
+Calcul du nouveau point objectif.
+"""
 def move(dist, angle):
     newAngle = robot.theta + angle
     
-    newX = dist * np.cos(newAngle)
-    newY = dist * np.sin(newAngle)
+    newX = dist * np.cos(newAngle) + robot.x
+    newY = dist * np.sin(newAngle) + robot.y
     
-    return [robot.x + newX, robot.y + newY]
+    return [newX, newY]
 
+# ========================================================================== #
+#                   INITIALISATION DES VARIABLES
+# ========================================================================== #
+"""
+Constantes globales pour la gestion des différentes données nécessaires
+aux calculs et détermination de la source de pollution.
+"""
 potentialValues = {"variation":0.0,"current":0.0,"previous":0.0}
 STATE = "Initialisation"
 tangentes = []
 
+# ========================================================================== #
+#                   BOUCLE DE SIMULATION
+# ========================================================================== #
+print("==================================================")
+print("Démarrage d'une nouvelle simulation")
+print(f"Difficulté utilisé : {difficulty}")
+
 # loop on simulation time
 for t in simu.t: 
-   
-
-
+    
     # position control loop
     if timerPositionCtrl.isEllapsed(t):
 
+        """
+        Stoquage du potentiel du robot.
+        On stoque ici 3 valeurs :
+            - variation :  la valeur de différence de pollution avec l'ittération précédente
+            - current :    la valeur actuelle de pollution (utilisé pour calculer la variation)
+        """
         potentialValue = pot.value([robot.x, robot.y])
         potentialValues = {"variation": potentialValue-potentialValues["current"],
                            "current":   potentialValue}
 
+# ========================================================================== #
+#                   AUTOMATE
+# ========================================================================== #
+        """
+        Etape 1 :
+        Pendant l'initialisation, le robot se déplace en ligne droite jusqu'à trouver
+        un potentiel de pollution valide (>0). Cette étape est nécessaire pour eviter
+        de trouver une tangente dans une zone non valide.
+        """
         # algo
         if (STATE == "Initialisation"):
             aim = move(2.0,0.0)
             if (potentialValue > 0):
                 STATE = "Recherche"
+                
+            """
+            Etape 2 :
+            On cherche les deux tangentes. Si la valeur de potentiel augmente, on continu à avancer.
+            Si la valeur est inférieur à la précédente (ΔP < 0), alors cela siginifie que le robot
+            se trouve sur un point tangent et on récupère donc les données nécessaires : x,y,theta
+            """   
         elif (STATE == "Recherche"):
             if(len(tangentes) < 2):
                 if(potentialValues["variation"] < 0):
@@ -94,8 +130,14 @@ for t in simu.t:
                     aim = move(2.0,0.0)
             else:
                 STATE = "Calcul"
+                
+            """
+            Etape 3 :
+            On exécute les calculs afin d'obtenir le point d'intersection des perpendiculaires des tangentes.
+            Puis on attribut ce point à l'objectif du robot.
+            """     
         elif (STATE == "Calcul"):
-            print(tangentes)
+            print("Les deux tangentes on été trouvé, les données du calcul sont les suivantes : ",tangentes)
             a1 = np.sin(tangentes[0][2]+np.pi/2)/np.cos(tangentes[0][2]+np.pi/2)
             a2 = np.sin(tangentes[1][2]+np.pi/2)/np.cos(tangentes[1][2]+np.pi/2)
             
@@ -105,31 +147,37 @@ for t in simu.t:
             x = (b2 - b1) / (a1 - a2)
             y = a1 * x + b1
             aim = [x,y]
+            print("Les coordonnées du maximum sont :",aim)
             STATE = "Conclusion"
-            
+         
+            """
+            Etape 4 :
+            On attend ici l'atteinte du maximum trouvé lors de l'étape précédente.
+            On considère qu'on l'a atteint quand le robot à une vitesse linéaire < 0.1
+            """
         elif (STATE == "Conclusion"):
             if (Vr < 0.1):
-                print(potentialValue)
+                print("Le point maximum a été atteint, valeur du potentiel final :",potentialValue)
+                print("Valeur du potentiel maximum :",pot.value([pot.mu1[0],pot.mu1[1]]))
+                print("Erreur relative :",(pot.value([pot.mu1[0],pot.mu1[1]])-potentialValue)/pot.value([pot.mu1[0],pot.mu1[1]])*100,"%")
                 STATE = "Fini"
         
+# ========================================================================== #
+#                   COMMAANDE DU ROBOT
+# ========================================================================== #
         # velocity control input
         Vr = kpPos * np.sqrt((aim[0] - robot.x)**2 + (aim[1] - robot.y)**2)
-        
         
         # reference orientation
         thetar = np.arctan2(aim[1] - robot.y,aim[0] - robot.x)
         
-        
         if math.fabs(robot.theta-thetar)>math.pi:
             thetar = thetar + math.copysign(2*math.pi,robot.theta)        
-        
-        
-        
+
     # orientation control loop
     if timerOrientationCtrl.isEllapsed(t):
         # angular velocity control input        
         omegar = kpOrient * (thetar - robot.theta)
-    
     
     # assign control inputs to robot
     robot.setV(Vr)
@@ -141,33 +189,19 @@ for t in simu.t:
     # store data to be plotted   
     simu.addData(robot, WPManager, Vr, thetar, omegar, pot.value([robot.x,robot.y]))
     
-    
 # end of loop on simulation time
+print("Fin de la simulation")
+print("==================================================")
 
-
+# ========================================================================== #
+#                   AFFICHAGE
+# ========================================================================== #
 # close all figures
 plt.close("all")
 
 # generate plots
 fig,ax = simu.plotXY(1)
 pot.plot(noFigure=None, fig=fig, ax=ax)  # plot potential for verification of solution
-
-#simu.plotXYTheta(2)
-#simu.plotVOmega(3)
-
-#simu.plotPotential(4)
-
-
-
-#simu.plotPotential3D(5)
-
-
-# show plots
-#plt.show()
-
-
-
-
 
 # # Animation *********************************
 #fig = plt.figure()
