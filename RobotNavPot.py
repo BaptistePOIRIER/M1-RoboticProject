@@ -63,25 +63,37 @@ def move(dist, angle):
 # ========================================================================== #
 #                   INITIALISATION DES VARIABLES
 # ========================================================================== #
-#potentialValues = [0.0]
+"""
+Constantes globales pour la gestion des différentes données nécessaires
+aux calculs et détermination de la source de pollution.
+"""
 potentialValues = {"variation":0.0,"current":0.0,"previous":0.0}
-STATE = "INIT"
+STATE = "Atteint Seuil"
 outsidePoints = []
 potentialPoints = []
 predictionPoint = []
+maxValue = 0.0
+maxPoint = []
+maxCounter = 0
 
+"""
+Paramètres sur lesquels influer pour changer le comportement de la
+cartographie et de la recherche de la source par le calcul.
+"""
 seuil = 150.0
 epsilonSeuil = 0.2
 epsilonStartSeuil = 4
 fullLoopDetectDistance = 5
 distanceBetweenPoints = 1
-maxValue = 0.0
-maxPoint = []
-maxCounter = 0
+
 
 # ========================================================================== #
 #                   BOUCLE DE SIMULATION
 # ========================================================================== #
+print("==================================================")
+print("Démarrage d'une nouvelle simulation")
+print(f"Difficulté utilisé : {difficulty}")
+
 # loop on simulation time
 for t in simu.t: 
 
@@ -95,7 +107,6 @@ for t in simu.t:
             - current :    la valeur actuelle de pollution (utilisé pour calculer la variation)
         """
         potentialValue = pot.value([robot.x, robot.y])
-        #potentialValues.append(potentialValue)
         potentialValues = {"variation": potentialValue-potentialValues["current"],
                            "current":   potentialValue}
 
@@ -104,11 +115,13 @@ for t in simu.t:
 # ========================================================================== #
         """
         Etape 1 :
-        Copier le truc du rapport
+        Pendant cette étape, le robot se déplace de manière à atteindre la valeur seuil
+        qu'il va devoir suivre par la suite. Il s'oriente donc intelligemment pour atteindre
+        cette valeur en tournant lorsque c'est nécessaire.
         """
-        if (STATE == "INIT"):
+        if (STATE == "Atteint Seuil"):
             if(abs(seuil - potentialValue) < epsilonStartSeuil):
-                STATE = "FOLLOWER"
+                STATE = "Suivi"
 
             elif ((potentialValue < seuil and potentialValues["variation"] < 0) or (potentialValue > seuil and potentialValues["variation"] > 0)):
                 aim = move(2.0,1.0)
@@ -118,16 +131,24 @@ for t in simu.t:
 
             """
             Etape 2 :
-                Copier le truc du rapport
+            Afin de réaliser la cartographie du nuage de pollution, le robot est amené a suivre
+            un seuil de pollution prédéfini dans le sens anti-horaire. Pour le suivre efficacement, 
+            nous déterminons deux zones :
+                - intérieur : le potentiel est plus grand que seuil+ε, le robot tourne à droite si ∆P > 0, sinon il vas tout droit
+                - extérieur : le potentiel est plus petit que seuil-ε, le robot tourne à gauchesi ∆P < 0, sinon il vas tout droit
             """
-        elif (STATE == "FOLLOWER"):
+        elif (STATE == "Suivi"):
             # On est sur le seuil (à epsilonSeuil près)
             if(abs(seuil - potentialValue) < epsilonSeuil):
                 aim = move(1.0,0.0)
                 # Détection tour complet
                 if (len(outsidePoints) > 10 and np.sqrt((outsidePoints[0][0] - robot.x)**2 + (outsidePoints[0][1] - robot.y)**2) < fullLoopDetectDistance):
-                    STATE = "COMPUTE"
-                # Ajout de points pour le calcul
+                    STATE = "Calcul"
+                
+                    """
+                    On ajoute les points qui sont espacé d'au moins distanceBetweenPoints et qui on une précision
+                    à 0.05 de la valeur seuil.
+                    """
                 elif (abs(seuil - potentialValue) < 0.05):
                     if(len(outsidePoints) == 0):
                         outsidePoints.append([robot.x,robot.y])
@@ -150,10 +171,14 @@ for t in simu.t:
 
             """
             Etape 3 :
-                Copier le truc du rapport
+            Une fois l'étape de cartographie finie, on utilise la méthode des cordes 
+            pour obtenir des prédictions sur les centres des clusters.
+            On applique ensuite l'algorithme de clustering (ou algorithme des centres mobiles) sur notre tableau de mesures.
+            Après avoir récupéré les centres approchés des clusters, nous déterminons le cluster le plus important (qui a le
+            plus de points associés)
             """
-        elif (STATE == "COMPUTE"):
-            print("Nombre de points extérieurs trouvés : %s en t=%s" %(len(outsidePoints),t))
+        elif (STATE == "Calcul"):
+            print("Nombre de points extérieurs trouvés : %s en t=%ss" %(len(outsidePoints),t))
             for i in range(len(outsidePoints)-2):
                 theta1 = np.arctan2((outsidePoints[i][1]-outsidePoints[i+1][1]),(outsidePoints[i][0]-outsidePoints[i+1][0]))
                 theta2 = np.arctan2((outsidePoints[i+1][1]-outsidePoints[i+2][1]),(outsidePoints[i+1][0]-outsidePoints[i+2][0]))
@@ -175,16 +200,28 @@ for t in simu.t:
                 if (abs(x) < 25 and abs(y) < 25):
                     potentialPoints.append([x,y])
 
-            print("Nombres de points potentiels calculés :",len(potentialPoints))
+            print("Nombres de centres potentiels de clusters calculés :",len(potentialPoints))
+            
+            
+            """
+            Initialisation des cluster pour l'algorithme des centres mobiles.
+            Le nombre de cluster est limité à 2 car on ne prend pas en compte les ellipses.
+            On remarque aussi qu'on prend des points les plus loin possible les uns
+            des autres pour réduire le nombre d'ittérations de l'algorithme.
+            """
             clusters = []
             clustersAmount = min(difficulty,2)
             for i in range(1,clustersAmount+1):
                 clusters.append({"center":potentialPoints[i*(len(potentialPoints)//clustersAmount)-1],"points":[]})
             
+            """
+            Début de l'algorithme des centres mobiles
+            """
+            print("Démarrage de l'algorithme des centres mobiles...")
             centersNotFound = True
             
             while(centersNotFound):
-                print("Itterate")
+                print("\tNouvelle ittération...")
                 for cluster in clusters:
                     cluster["points"] = []
                     
@@ -210,28 +247,35 @@ for t in simu.t:
                         cluster["center"] = center
                         centersNotFound = True
             
+            """
+            Choix du meilleur cluster
+            """
             amount = 0
             for cluster in clusters:
                 if (amount < len(cluster["points"])):
                     amount = len(cluster["points"])
                     predictionPoint = cluster["center"]
-            
+
+            print("Cluster trouvé aux coordonnées : ",predictionPoint)
             aim = predictionPoint
-            STATE = "REACH_CLUSTER"
+            STATE = "Atteint cluster"
             
             """
             Etape 4 :
-                Copier le truc du rapport
+            Durant cette étape, le robot va simplement jusqu'à la prédiction calculé précédemment.
+            On considère qu'il l'a atteint quand il est à une distance d < 1.
             """
-        elif (STATE == "REACH_CLUSTER"):
+        elif (STATE == "Atteint cluster"):
             if (np.sqrt((predictionPoint[0] - robot.x)**2 + (predictionPoint[1] - robot.y)**2) < 1):
-                STATE = "SEARCH_MAX"
+                STATE = "Recherche approfondie"
 
             """
             Etape 5 :
-                Copier le truc du rapport
+            Cette étape sert à approfondir la précision de la détection. 
+            La fonction consiste à se rapprocher de plus de plus en plus du potentiel maximum 
+            jusqu'à avoir une précision extrêmement élevée.
             """
-        elif (STATE == "SEARCH_MAX"):
+        elif (STATE == "Recherche approfondie"):
             if(potentialValues["variation"] > 0):
                 aim = move(0.5,0.0)
                 if (maxValue < potentialValue):
@@ -242,19 +286,21 @@ for t in simu.t:
                     maxCounter += 1
                     if(maxCounter > 5):
                         aim = maxPoint
-                        STATE = "REACH_MAX"
+                        STATE = "Atteint max"
             else:
                 aim = move(0.1,1.0)
 
             """
             Etape 6 :
-                Copier le truc du rapport
+            On attend ici l'atteinte du maximum trouvé lors de l'étape précédente.
+            On considère qu'on l'a atteint quand le robot à une vitesse linéaire < 0.1
             """
-        elif (STATE == "REACH_MAX"):
+        elif (STATE == "Atteint max"):
             #print(centers)
             if (Vr < 0.1):
                 print("Valeur du potentiel final : ",potentialValue)
                 print("Valeur du potentiel maximum :",pot.value([pot.mu1[0],pot.mu1[1]]))
+                print("Erreur relative :",(pot.value([pot.mu1[0],pot.mu1[1]])-potentialValue)/pot.value([pot.mu1[0],pot.mu1[1]])*100,"%")
                 STATE = "END"
 
 # ========================================================================== #
@@ -291,6 +337,8 @@ for t in simu.t:
     
     
 # end of loop on simulation time
+print("Fin de la simulation")
+print("==================================================")
 
 # ========================================================================== #
 #                   AFFICHAGE
@@ -301,6 +349,10 @@ plt.close("all")
 # generate plots
 fig,ax = simu.plotXY(1,-50,50,-50,50)
 pot.plot(noFigure=None, fig=fig, ax=ax)  # plot potential for verification of solution
+
+"""
+Affichage de point intéressant pour la compréhension de la déterrmination du max.
+"""
 for point in outsidePoints:
     plt.plot(point[0], point[1], 'bo--', linewidth=2, markersize=2)
 for point in potentialPoints:
@@ -311,24 +363,7 @@ for cluster in clusters:
 plt.plot(pot.mu1[0],pot.mu1[1], 'bo--', linewidth=2, markersize=3)
 plt.plot(robot.x,robot.y, 'go--', linewidth=2, markersize=3)
 
-#simu.plotXYTheta(2)
-#simu.plotVOmega(3)
-
-#simu.plotPotential(4)
-
-
-
-#simu.plotPotential3D(5)
-
-
-# show plots
-#plt.show()
-
-
-
-
-
-# # Animation *********************************
+# Animation *********************************
 ##fig = plt.figure()
 #ax = fig.add_subplot(111, aspect='equal', autoscale_on=False, xlim=(-50, 50), ylim=(-50, 50))
 #ax.grid()
