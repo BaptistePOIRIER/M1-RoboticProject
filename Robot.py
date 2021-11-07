@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-Robot class, WPManager class, and Simulation class
+Projet Introduction à la robotique
+FORDANT - GOUDIN - POIRIER
 
-(c) S. Bertrand
+Robot
 """
 
 import math

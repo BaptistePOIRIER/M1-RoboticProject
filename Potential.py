@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """
-Created on Thu Mar 18 23:10:16 2021
+Projet Introduction à la robotique
+FORDANT - GOUDIN - POIRIER
 
-(c) S. Bertrand
+Potential
 """
-
 
 import numpy as np
 

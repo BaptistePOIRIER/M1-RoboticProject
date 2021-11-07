@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-Timer class
+Projet Introduction à la robotique
+FORDANT - GOUDIN - POIRIER
 
-(c) S. Bertrand
+Timer
 """
 
 import numpy as np

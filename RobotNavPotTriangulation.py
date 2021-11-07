@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-Way Point navigtion
+Projet Introduction à la robotique
+FORDANT - GOUDIN - POIRIER
 
-(c) S. Bertrand
+RobotNavTriangulation (intéressant pour le calcul mais non fonctionnel)
 """
 
 import math
@@ -121,6 +121,7 @@ for t in simu.t:
         elif (STATE == 2):
             if (Vr < 1):
                 print(potentialValue)
+                print("Le résultat est erroné car la distribution n'est pas linéaire, comme expliqué dans le rapport.")
                 STATE = 3
         
         # velocity control input
