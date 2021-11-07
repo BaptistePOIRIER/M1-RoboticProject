@@ -19,7 +19,7 @@ theta0 = 0.0
 robot = rob.Robot(x0, y0, theta0)
 
 # potential
-difficulty = 1
+difficulty = 3
 pot = Potential.Potential(difficulty=difficulty, random=True)
 
 # position control loop: gain and timer
@@ -49,6 +49,9 @@ firstIter = True
 # ========================================================================== #
 #                   FONCTIONS
 # ========================================================================== #
+"""
+Calcul du nouveau point objectif.
+"""
 def move(dist, angle):
     newAngle = robot.theta + angle
     
@@ -60,17 +63,18 @@ def move(dist, angle):
 # ========================================================================== #
 #                   INITIALISATION DES VARIABLES
 # ========================================================================== #
-potentialValues = [0.0]
+#potentialValues = [0.0]
+potentialValues = {"variation":0.0,"current":0.0,"previous":0.0}
 STATE = "INIT"
-outside_points = []
-all_points = [[],[]]
-potential_points = []
-prediction_point = []
-seuil = 200.0
+outsidePoints = []
+potentialPoints = []
+predictionPoint = []
+
+seuil = 150.0
 epsilonSeuil = 0.2
 epsilonStartSeuil = 4
 fullLoopDetectDistance = 5
-distanceBetweenPoints = 2
+distanceBetweenPoints = 1
 maxValue = 0.0
 maxPoint = []
 maxCounter = 0
@@ -84,55 +88,83 @@ for t in simu.t:
     # position control loop
     if timerPositionCtrl.isEllapsed(t):
 
+        """
+        Stoquage du potentiel du robot.
+        On stoque ici 3 valeurs :
+            - variation :  la valeur de différence de pollution avec l'ittération précédente
+            - current :    la valeur actuelle de pollution (utilisé pour calculer la variation)
+        """
         potentialValue = pot.value([robot.x, robot.y])
-        potentialValues.append(potentialValue)
+        #potentialValues.append(potentialValue)
+        potentialValues = {"variation": potentialValue-potentialValues["current"],
+                           "current":   potentialValue}
 
 # ========================================================================== #
 #                   AUTOMATE
 # ========================================================================== #
+        """
+        Etape 1 :
+        Copier le truc du rapport
+        """
         if (STATE == "INIT"):
             if(abs(seuil - potentialValue) < epsilonStartSeuil):
                 STATE = "FOLLOWER"
-                aim = move(0.0,0.0)
-            elif ((potentialValue < seuil and potentialValues[-1] - potentialValues[-2] < 0) or (potentialValue > seuil and potentialValues[-1] - potentialValues[-2] > 0)):
+
+            elif ((potentialValue < seuil and potentialValues["variation"] < 0) or (potentialValue > seuil and potentialValues["variation"] > 0)):
                 aim = move(2.0,1.0)
+
             else:
                 aim = move(5.0,0.0)
 
+            """
+            Etape 2 :
+                Copier le truc du rapport
+            """
         elif (STATE == "FOLLOWER"):
+            # On est sur le seuil (à epsilonSeuil près)
             if(abs(seuil - potentialValue) < epsilonSeuil):
                 aim = move(1.0,0.0)
-                if (len(outside_points) > 10 and abs(outside_points[0][0] - robot.x) < 2 and abs(outside_points[0][1] - robot.y) < fullLoopDetectDistance):
+                # Détection tour complet
+                if (len(outsidePoints) > 10 and np.sqrt((outsidePoints[0][0] - robot.x)**2 + (outsidePoints[0][1] - robot.y)**2) < fullLoopDetectDistance):
                     STATE = "COMPUTE"
+                # Ajout de points pour le calcul
                 elif (abs(seuil - potentialValue) < 0.05):
-                    if(len(outside_points) == 0):
-                        outside_points.append([robot.x,robot.y])
-                    elif (np.sqrt((outside_points[-1][0] - robot.x)**2 + (outside_points[-1][1] - robot.y)**2) > distanceBetweenPoints):
-                        outside_points.append([robot.x,robot.y])
+                    if(len(outsidePoints) == 0):
+                        outsidePoints.append([robot.x,robot.y])
+                    elif (np.sqrt((outsidePoints[-1][0] - robot.x)**2 + (outsidePoints[-1][1] - robot.y)**2) > distanceBetweenPoints):
+                        outsidePoints.append([robot.x,robot.y])
+                        
+            # Dans le cluster (selon la valeur seuil)
             elif(seuil - potentialValue < 0): # Inside cluster
-                if(potentialValues[-1] - potentialValues[-2] > 0): # going towards center
+                if(potentialValues["variation"] > 0):
                     aim = move(0.5,-0.1)
                 else:
                     aim = move(0.5,0.0)
-            else: # Outside cluster
-                if(potentialValues[-1] - potentialValues[-2] < 0): # going away
+                    
+            # En dehors du cluster  (selon la valeur seuil)
+            else:
+                if(potentialValues["variation"] < 0):
                     aim = move(0.5,0.1)
                 else:
                     aim = move(0.5,0.0)
 
+            """
+            Etape 3 :
+                Copier le truc du rapport
+            """
         elif (STATE == "COMPUTE"):
-            print("Nombre de points extérieurs trouvés : %s en t=%s" %(len(outside_points),t))
-            for i in range(len(outside_points)-2):
-                theta1 = np.arctan2((outside_points[i][1]-outside_points[i+1][1]),(outside_points[i][0]-outside_points[i+1][0]))
-                theta2 = np.arctan2((outside_points[i+1][1]-outside_points[i+2][1]),(outside_points[i+1][0]-outside_points[i+2][0]))
+            print("Nombre de points extérieurs trouvés : %s en t=%s" %(len(outsidePoints),t))
+            for i in range(len(outsidePoints)-2):
+                theta1 = np.arctan2((outsidePoints[i][1]-outsidePoints[i+1][1]),(outsidePoints[i][0]-outsidePoints[i+1][0]))
+                theta2 = np.arctan2((outsidePoints[i+1][1]-outsidePoints[i+2][1]),(outsidePoints[i+1][0]-outsidePoints[i+2][0]))
                 
                 a1 = np.sin(theta1+np.pi/2)/np.cos(theta1+np.pi/2)
                 a2 = np.sin(theta2+np.pi/2)/np.cos(theta2+np.pi/2)
                 
-                center1X = (outside_points[i][0] + outside_points[i+1][0]) / 2 
-                center1Y = (outside_points[i][1] + outside_points[i+1][1]) / 2 
-                center2X = (outside_points[i+1][0] + outside_points[i+2][0]) / 2 
-                center2Y = (outside_points[i+1][1] + outside_points[i+2][1]) / 2 
+                center1X = (outsidePoints[i][0] + outsidePoints[i+1][0]) / 2 
+                center1Y = (outsidePoints[i][1] + outsidePoints[i+1][1]) / 2 
+                center2X = (outsidePoints[i+1][0] + outsidePoints[i+2][0]) / 2 
+                center2Y = (outsidePoints[i+1][1] + outsidePoints[i+2][1]) / 2 
                 
                 b1 = center1Y - a1 * center1X
                 b2 = center2Y - a2 * center2X
@@ -141,13 +173,13 @@ for t in simu.t:
                 y = a1 * x + b1
                 
                 if (abs(x) < 25 and abs(y) < 25):
-                    potential_points.append([x,y])
+                    potentialPoints.append([x,y])
 
-            print("Nombres de points potentiels calculés :",len(potential_points))
+            print("Nombres de points potentiels calculés :",len(potentialPoints))
             clusters = []
-            clusters_amount = min(difficulty,2)
-            for i in range(1,clusters_amount+1):
-                clusters.append({"center":potential_points[i*(len(potential_points)//clusters_amount)-1],"points":[]})
+            clustersAmount = min(difficulty,2)
+            for i in range(1,clustersAmount+1):
+                clusters.append({"center":potentialPoints[i*(len(potentialPoints)//clustersAmount)-1],"points":[]})
             
             centersNotFound = True
             
@@ -156,10 +188,10 @@ for t in simu.t:
                 for cluster in clusters:
                     cluster["points"] = []
                     
-                for point in potential_points:
+                for point in potentialPoints:
                     dist_min = 1000
                     k = 0
-                    for i in range(clusters_amount):
+                    for i in range(clustersAmount):
                         dist = np.sqrt((clusters[i]["center"][0] - point[0])**2 + (clusters[i]["center"][1] - point[1])**2)
                         if (dist < dist_min):
                             k = i
@@ -182,18 +214,25 @@ for t in simu.t:
             for cluster in clusters:
                 if (amount < len(cluster["points"])):
                     amount = len(cluster["points"])
-                    prediction_point = cluster["center"]
+                    predictionPoint = cluster["center"]
             
-            aim = prediction_point
+            aim = predictionPoint
             STATE = "REACH_CLUSTER"
             
+            """
+            Etape 4 :
+                Copier le truc du rapport
+            """
         elif (STATE == "REACH_CLUSTER"):
-            #print(centers)
-            if (np.sqrt((prediction_point[0] - robot.x)**2 + (prediction_point[1] - robot.y)**2) < 1):
+            if (np.sqrt((predictionPoint[0] - robot.x)**2 + (predictionPoint[1] - robot.y)**2) < 1):
                 STATE = "SEARCH_MAX"
-        
+
+            """
+            Etape 5 :
+                Copier le truc du rapport
+            """
         elif (STATE == "SEARCH_MAX"):
-            if(potentialValues[-1] - potentialValues[-2] > 0):
+            if(potentialValues["variation"] > 0):
                 aim = move(0.5,0.0)
                 if (maxValue < potentialValue):
                     maxValue = potentialValue
@@ -201,15 +240,19 @@ for t in simu.t:
                     maxCounter = 0
                 else:
                     maxCounter += 1
-                    if(maxCounter > 1):
+                    if(maxCounter > 5):
                         aim = maxPoint
                         STATE = "REACH_MAX"
             else:
                 aim = move(0.1,1.0)
-            
+
+            """
+            Etape 6 :
+                Copier le truc du rapport
+            """
         elif (STATE == "REACH_MAX"):
             #print(centers)
-            if (np.sqrt((maxPoint[0] - robot.x)**2 + (maxPoint[1] - robot.y)**2) < 0.1):
+            if (Vr < 0.1):
                 print("Valeur du potentiel final : ",potentialValue)
                 print("Valeur du potentiel maximum :",pot.value([pot.mu1[0],pot.mu1[1]]))
                 STATE = "END"
@@ -258,11 +301,11 @@ plt.close("all")
 # generate plots
 fig,ax = simu.plotXY(1,-50,50,-50,50)
 pot.plot(noFigure=None, fig=fig, ax=ax)  # plot potential for verification of solution
-for point in outside_points:
+for point in outsidePoints:
     plt.plot(point[0], point[1], 'bo--', linewidth=2, markersize=2)
-for point in potential_points:
+for point in potentialPoints:
     plt.plot(point[0], point[1], 'ro--', linewidth=2, markersize=2)
-plt.plot(prediction_point[0], prediction_point[1], 'go--', linewidth=2, markersize=10)
+plt.plot(predictionPoint[0], predictionPoint[1], 'go--', linewidth=2, markersize=10)
 for cluster in clusters:
     plt.plot(cluster["center"][0], cluster["center"][1], 'wo--', linewidth=2, markersize=5)
 plt.plot(pot.mu1[0],pot.mu1[1], 'bo--', linewidth=2, markersize=3)

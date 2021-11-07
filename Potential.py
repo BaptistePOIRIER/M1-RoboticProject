@@ -114,11 +114,52 @@ if __name__=='__main__':
     
     plt.close()
     
-    pot = Potential(difficulty=3, random=False)
+    pot = Potential(difficulty=1, random=False)
        
     fig2, ax2 = pot.plot(1)
+#    points = [[-14,-14],[-8,-12],[-7,-5]]
+    center = [6,4]
+#    plt.plot(points[0][0], points[0][1], 'bo--', linewidth=2, markersize=4)
+#    plt.plot(points[1][0], points[1][1], 'wo--', linewidth=2, markersize=4)
+#    plt.plot(points[2][0], points[2][1], 'ro--', linewidth=2, markersize=4)
+#    circles = [[],[],[]]
+#    density = 500
+#    for i in range(3):
+#        dist = np.sqrt((points[i][0]-center[0])**2+(points[i][1]-center[1])**2)
+#        for j in range(density):
+#            circles[i].append([points[i][0]+(np.cos(j*2*np.pi/density))*dist,points[i][1]+(np.sin(j*2*np.pi/density))*dist])
+#
+#    for point in circles[0]:
+#        plt.plot(point[0], point[1], 'bo--', linewidth=2, markersize=1)
+#    for point in circles[1]:
+#        plt.plot(point[0], point[1], 'wo--', linewidth=2, markersize=1)
+#    for point in circles[2]:
+#        plt.plot(point[0], point[1], 'ro--', linewidth=2, markersize=1)
+#
+#    plt.plot(center[0], center[1], 'go--', linewidth=2, markersize=10)
     
-
+    tangentes = [[6.3999999999793173, -19.999967000001959, 1.2500000003970923e-06], [16.223467124991835, -15.059861549008129, 0.46875125000000017]]
+    plt.plot(tangentes[0][0], tangentes[0][1], 'bo--', linewidth=2, markersize=4)
+    plt.plot(tangentes[1][0], tangentes[1][1], 'ro--', linewidth=2, markersize=4)
+    
+    length = 30
+    size = 1
+    for i in range(length):
+        plt.plot(tangentes[0][0]+(np.cos(tangentes[0][2])*i*size), tangentes[0][1]+(np.sin(tangentes[0][2])*i*size), 'bo--', linewidth=2, markersize=1)
+        plt.plot(tangentes[0][0]+(np.cos(tangentes[0][2])*-i*size), tangentes[0][1]+(np.sin(tangentes[0][2])*-i*size), 'bo--', linewidth=2, markersize=1)
+        
+    for i in range(length):
+        plt.plot(tangentes[1][0]+(np.cos(tangentes[1][2])*i*size), tangentes[1][1]+(np.sin(tangentes[1][2])*i*size), 'ro--', linewidth=2, markersize=1)
+        plt.plot(tangentes[1][0]+(np.cos(tangentes[1][2])*-i*size), tangentes[1][1]+(np.sin(tangentes[1][2])*-i*size), 'ro--', linewidth=2, markersize=1)
+    
+    length = 60
+    size = 0.5
+    
+    for i in range(length):
+        plt.plot(tangentes[0][0]+(np.cos(tangentes[0][2]+np.pi/2)*i*size), tangentes[0][1]+(np.sin(tangentes[0][2]+np.pi/2)*i*size), 'bo--', linewidth=2, markersize=2)
+        plt.plot(tangentes[1][0]+(np.cos(tangentes[1][2]-np.pi/2)*-i*size), tangentes[1][1]+(np.sin(tangentes[1][2]-np.pi/2)*-i*size), 'ro--', linewidth=2, markersize=2)
+        
+    plt.plot(center[0], center[1], 'go--', linewidth=2, markersize=10)
     print(pot.value( [6. , 4.] ))
     print(pot.value( [-2., 2.]) )
 

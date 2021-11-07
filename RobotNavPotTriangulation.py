@@ -64,9 +64,11 @@ def move(dist, angle):
     
     return [robot.x + newX, robot.y + newY]
 
-potentialValues = {"variation":0.0,"current":0.0,"previous":0.0}
-STATE = "Initialisation"
-tangentes = []
+potentialValues = [0.0]
+STATE = -1
+points = []
+#points = [[2.0, 1.0, np.sqrt(10)],[5.0, 4.0, 2.0],[8.0, 2.0, 4.0]]
+potentialMax = 313.201823198
 
 # loop on simulation time
 for t in simu.t: 
@@ -77,40 +79,49 @@ for t in simu.t:
     if timerPositionCtrl.isEllapsed(t):
 
         potentialValue = pot.value([robot.x, robot.y])
-        potentialValues = {"variation": potentialValue-potentialValues["current"],
-                           "current":   potentialValue}
+        potentialValues.append(potentialValue)
 
         # algo
-        if (STATE == "Initialisation"):
+        if (STATE == -1):
             aim = move(2.0,0.0)
             if (potentialValue > 0):
-                STATE = "Recherche"
-        elif (STATE == "Recherche"):
-            if(len(tangentes) < 2):
-                if(potentialValues["variation"] < 0):
-                    tangentes.append([robot.x,robot.y,robot.theta])
-                    aim = move(1.0,0.2)
-                else:
-                    aim = move(2.0,0.0)
+                points.append([robot.x,robot.y,potentialValue])
+                STATE = 0
+                
+        elif (STATE == 0):
+            aim = move(2.0,1.0)
+            if(len(points) < 3):
+                if(np.sqrt((points[-1][0]-robot.x)**2+(points[-1][1]-robot.y)**2) < 1):
+                    points.append([robot.x,robot.y,abs(potentialMax-potentialValue)])
             else:
-                STATE = "Calcul"
-        elif (STATE == "Calcul"):
-            print(tangentes)
-            a1 = np.sin(tangentes[0][2]+np.pi/2)/np.cos(tangentes[0][2]+np.pi/2)
-            a2 = np.sin(tangentes[1][2]+np.pi/2)/np.cos(tangentes[1][2]+np.pi/2)
+                print(points)
+                STATE = 1
+        elif (STATE == 1):
+            a = 2*(points[2][0]-points[0][0])
+            b = 2*(points[2][1]-points[0][1])
+            c = 2*(points[2][0]-points[1][0])
+            d = 2*(points[2][1]-points[1][1])
+            matrixDeterminant = a * b - (c * d)
+            if(matrixDeterminant == 0):
+                points = []
+                STATE == 0
+            else:
+                a_ = (1/matrixDeterminant)*d
+                b_ = (1/matrixDeterminant)*(-b)
+                c_ = (1/matrixDeterminant)*(-c)
+                d_ = (1/matrixDeterminant)*a
+                x = a_ * (points[0][2]**2 - points[2][2]**2 + points[2][0]**2 - points[0][0]**2 + points[2][1]**2 - points[0][1]**2)
+                x += b_ * (points[1][2]**2 - points[2][2]**2 + points[2][0]**2 - points[1][0]**2 + points[2][1]**2 - points[1][1]**2)
+                y = c_ * (points[0][2]**2 - points[2][2]**2 + points[2][0]**2 - points[0][0]**2 + points[2][1]**2 - points[0][1]**2)
+                y += d_ * (points[1][2]**2 - points[2][2]**2 + points[2][0]**2 - points[1][0]**2 + points[2][1]**2 - points[1][1]**2)
+                aim = [x,y]
+                print(x,y)
+                STATE = 2
             
-            b1 = tangentes[0][1] - a1 * tangentes[0][0]
-            b2 = tangentes[1][1] - a2 * tangentes[1][0]
-            
-            x = (b2 - b1) / (a1 - a2)
-            y = a1 * x + b1
-            aim = [x,y]
-            STATE = "Conclusion"
-            
-        elif (STATE == "Conclusion"):
-            if (Vr < 0.1):
+        elif (STATE == 2):
+            if (Vr < 1):
                 print(potentialValue)
-                STATE = "Fini"
+                STATE = 3
         
         # velocity control input
         Vr = kpPos * np.sqrt((aim[0] - robot.x)**2 + (aim[1] - robot.y)**2)
